@@ -1,0 +1,28 @@
+# dependencies
+node_modules
+.pnpm-store
+
+# next.js
+.next
+out
+
+# testing
+coverage
+playwright-report
+test-results
+blob-report
+
+# env
+.env
+.env*.local
+.env.sentry-build-plugin
+
+# vercel
+.vercel
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+npm-debug.log*
+pnpm-debug.log*
