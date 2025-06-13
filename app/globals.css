@@ -1,0 +1,11 @@
+/*
+ * Taskyard stylesheet. Base type and reset first, then the brand layer split by concern.
+ * Order matters: later files refine earlier ones.
+ */
+@import "../styles/base.css";
+@import "../styles/brand.css";
+@import "../styles/header.css";
+@import "../styles/hero.css";
+@import "../styles/app-mock.css";
+@import "../styles/sections.css";
+@import "../styles/footer.css";

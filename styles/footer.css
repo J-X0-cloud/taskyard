@@ -1,0 +1,152 @@
+/* Closing CTA and footer */
+
+/* footer */
+.ty-cta {
+  margin-top: 128px;
+  border-radius: 28px;
+  padding: 72px 24px;
+  text-align: center;
+  background: radial-gradient(90% 140% at 50% 0%, #e3f5ec 0%, var(--color-bg) 60%);
+  border: 1px solid #dcebe3;
+}
+.ty-cta h2 {
+  color: var(--color-text-emphasis);
+  max-width: 680px;
+  margin: 0 auto;
+}
+.ty-cta p {
+  margin-top: 14px;
+  color: var(--color-text-muted);
+}
+.ty-cta .ty-ctas {
+  margin-top: 28px;
+}
+.ty-foot {
+  margin-top: 80px;
+  border-top: 1px solid var(--color-border);
+  padding: 56px 0 40px;
+}
+.ty-foot__grid {
+  display: grid;
+  gap: 36px 24px;
+  grid-template-columns: 1fr 1fr;
+}
+@media (min-width: 860px) {
+  .ty-foot__grid {
+    grid-template-columns: 1.6fr 1fr 1fr 1fr;
+  }
+}
+.ty-foot__brand {
+  grid-column: 1 / -1;
+}
+@media (min-width: 860px) {
+  .ty-foot__brand {
+    grid-column: auto;
+  }
+}
+.ty-foot__brand p {
+  margin-top: 16px;
+  max-width: 300px;
+  color: var(--color-text-muted);
+  font-size: 15px;
+  line-height: 1.6;
+}
+.ty-foot h4 {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+.ty-foot ul {
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+}
+.ty-foot li a {
+  font-size: 15.5px;
+  color: var(--color-text-emphasis);
+}
+.ty-foot li a:hover {
+  color: var(--ty-green-700);
+}
+.ty-foot__bar {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  justify-content: space-between;
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+.ty-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.ty-status i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ty-green-500);
+  box-shadow: 0 0 0 4px rgba(31, 163, 122, 0.18);
+  display: block;
+}
+.linkcard svg {
+  width: 11px;
+  height: 11px;
+}
+main {
+  overflow-x: clip;
+}
+.app svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+.app .app__ws svg {
+  width: 22px;
+  height: 22px;
+}
+.app__search svg {
+  width: 13px;
+  height: 13px;
+}
+.app .card__f svg {
+  width: 12px;
+  height: 12px;
+}
+.app .badge svg {
+  width: 11px;
+  height: 11px;
+}
+.app .linkcard svg {
+  width: 11px;
+  height: 11px;
+}
+.ty-btn--sm {
+  gap: 0;
+}
+@media (min-width: 1101px) {
+  .app__main--rel .doc {
+    margin: 8px 0 0 28px;
+    max-width: 540px;
+  }
+  .comment-pop {
+    right: 20px;
+    top: 118px;
+  }
+}
+.ty-cta h2 {
+  max-width: 760px;
+}
+@media (max-width: 480px) {
+  .ty-hero h1 {
+    font-size: 42px;
+  }
+}
+@media (min-width: 1101px) {
+  .app__main--rel .doc {
+    max-width: 470px;
+  }
+}
