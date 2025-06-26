@@ -1,0 +1,239 @@
+// Taskyard data model.
+// Every row that belongs to a customer carries workspaceId, and every query filters on it.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+  GUEST
+}
+
+enum SpaceRole {
+  EDITOR
+  COMMENTER
+  VIEWER
+}
+
+enum SpaceVisibility {
+  STUDIO
+  PRIVATE
+}
+
+enum CardStatus {
+  TODO
+  IN_PROGRESS
+  INTERNAL_REVIEW
+  CLIENT_REVIEW
+  DONE
+  CANCELLED
+}
+
+enum ApprovalDecision {
+  APPROVED
+  CHANGES_REQUESTED
+}
+
+model Workspace {
+  id          String       @id @default(cuid())
+  name        String
+  slug        String       @unique
+  /// When true, every member and guest must complete a second factor to sign in.
+  requireMfa  Boolean      @default(false)
+  ssoProvider String?
+  memberships Membership[]
+  spaces      Space[]
+  auditLog    AuditLog[]
+  createdAt   DateTime     @default(now())
+}
+
+model User {
+  id            String            @id @default(cuid())
+  email         String            @unique
+  name          String
+  mfaEnabled    Boolean           @default(false)
+  memberships   Membership[]
+  spaceAccess   SpaceMembership[]
+  assignedCards Card[]            @relation("Assignee")
+  timeEntries   TimeEntry[]
+  approvals     Approval[]
+  createdAt     DateTime          @default(now())
+}
+
+/// A person's role in a workspace. Guests never hold a paid seat.
+model Membership {
+  id          String        @id @default(cuid())
+  role        WorkspaceRole
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  createdAt   DateTime      @default(now())
+
+  @@unique([workspaceId, userId])
+}
+
+model Space {
+  id          String            @id @default(cuid())
+  name        String
+  color       String
+  visibility  SpaceVisibility   @default(STUDIO)
+  sprintsOn   Boolean           @default(false)
+  archivedAt  DateTime?
+  workspace   Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  members     SpaceMembership[]
+  boards      Board[]
+  docs        Doc[]
+  sprints     Sprint[]
+  createdAt   DateTime          @default(now())
+
+  @@index([workspaceId])
+}
+
+/// Explicit access to one space: private-space members and every invited client guest.
+model SpaceMembership {
+  id      String    @id @default(cuid())
+  role    SpaceRole
+  space   Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId String
+  user    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId  String
+
+  @@unique([spaceId, userId])
+  @@index([userId])
+}
+
+model Board {
+  id        String   @id @default(cuid())
+  name      String
+  space     Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId   String
+  columns   Column[]
+  createdAt DateTime @default(now())
+}
+
+model Column {
+  id       String     @id @default(cuid())
+  name     String
+  color    String
+  position Int
+  /// Status a card takes when dropped into this column.
+  status   CardStatus
+  board    Board      @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  boardId  String
+  cards    Card[]
+
+  @@unique([boardId, position])
+}
+
+model Card {
+  id            String      @id @default(cuid())
+  title         String
+  description   String?
+  status        CardStatus  @default(TODO)
+  /// Sparse ordering (steps of 1024) so a move rewrites one row, not the whole column.
+  position      Float
+  dueAt         DateTime?
+  estimateHours Float?
+  rollovers     Int         @default(0)
+  column        Column      @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  columnId      String
+  sprint        Sprint?     @relation(fields: [sprintId], references: [id])
+  sprintId      String?
+  assignee      User?       @relation("Assignee", fields: [assigneeId], references: [id])
+  assigneeId    String?
+  tags          String[]
+  timeEntries   TimeEntry[]
+  approvals     Approval[]
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  /// Serves the keyset-paginated column query: WHERE columnId = ? AND (position, id) > (?, ?)
+  @@index([columnId, position, id])
+  @@index([sprintId, status])
+}
+
+model Sprint {
+  id        String    @id @default(cuid())
+  number    Int
+  startsAt  DateTime
+  endsAt    DateTime
+  closedAt  DateTime?
+  space     Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId   String
+  cards     Card[]
+
+  @@unique([spaceId, number])
+  @@index([closedAt, endsAt])
+}
+
+model Doc {
+  id          String   @id @default(cuid())
+  title       String
+  /// Rich-text document as editor JSON.
+  content     Json
+  /// Guests can read published docs; drafts stay internal.
+  publishedAt DateTime?
+  parent      Doc?     @relation("DocTree", fields: [parentId], references: [id])
+  parentId    String?
+  children    Doc[]    @relation("DocTree")
+  space       Space    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  spaceId     String
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([spaceId])
+}
+
+model TimeEntry {
+  id        String   @id @default(cuid())
+  minutes   Int
+  loggedOn  DateTime @db.Date
+  note      String?
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId    String
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+  @@index([userId, loggedOn])
+}
+
+model Approval {
+  id        String           @id @default(cuid())
+  decision  ApprovalDecision
+  note      String?
+  card      Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  cardId    String
+  user      User             @relation(fields: [userId], references: [id])
+  userId    String
+  createdAt DateTime         @default(now())
+
+  @@index([cardId])
+}
+
+/// Append-only. Rows are never updated or deleted by the application.
+model AuditLog {
+  id          String    @id @default(cuid())
+  actorId     String
+  action      String
+  targetType  String
+  targetId    String
+  metadata    Json?
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId String
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
+  @@index([targetType, targetId])
+}
