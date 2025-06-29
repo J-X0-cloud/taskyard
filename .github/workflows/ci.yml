@@ -1,0 +1,117 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: 1
+  SESSION_SECRET: ci-session-secret-0123456789abcdef0123
+  DATABASE_URL: postgresql://taskyard:taskyard@localhost:5432/taskyard_test
+
+jobs:
+  checks:
+    name: Lint, typecheck & unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma generate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:coverage
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 7
+
+  e2e:
+    name: Build & end-to-end tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    needs: checks
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: taskyard
+          POSTGRES_PASSWORD: taskyard
+          POSTGRES_DB: taskyard_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U taskyard"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma migrate deploy
+      - run: pnpm db:seed
+      - name: Build
+        run: pnpm build
+        env:
+          NEXT_PUBLIC_RELEASE: ${{ github.sha }}
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
+      - run: pnpm test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  release:
+    name: Staged release
+    runs-on: ubuntu-latest
+    needs: [checks, e2e]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Pull staging environment
+        run: pnpm dlx vercel pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+      - name: Build and upload source maps to Sentry
+        run: pnpm dlx vercel build --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          NEXT_PUBLIC_RELEASE: ${{ github.sha }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      - name: Deploy to staging
+        run: pnpm dlx vercel deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} > staging-url.txt
+      - name: Smoke-test staging
+        run: |
+          URL=$(cat staging-url.txt)
+          curl --fail --retry 5 --retry-delay 5 "$URL/api/health"
+          pnpm exec playwright install --with-deps chromium
+          PLAYWRIGHT_BASE_URL="$URL" pnpm test:e2e e2e/marketing.spec.ts --project=desktop-chrome
+      - name: Promote to production
+        run: pnpm dlx vercel promote "$(cat staging-url.txt)" --yes --token=${{ secrets.VERCEL_TOKEN }}
